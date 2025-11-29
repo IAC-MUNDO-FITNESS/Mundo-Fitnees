@@ -56,19 +56,37 @@ pipeline {
             }
         }
         
+        stage('Install Terraform') {
+            steps {
+                echo '================================================'
+                echo 'Instalando Terraform'
+                echo '================================================'
+                sh '''
+                    # Verificar si terraform ya esta instalado
+                    if command -v terraform >/dev/null 2>&1; then
+                        echo "Terraform ya esta instalado:"
+                        terraform version
+                    else
+                        echo "Instalando Terraform..."
+                        wget -q https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
+                        unzip -q terraform_1.6.6_linux_amd64.zip
+                        chmod +x terraform
+                        ./terraform version
+                    fi
+                '''
+            }
+        }
+        
         stage('Terraform Init') {
             steps {
                 echo '================================================'
                 echo 'Inicializando Terraform'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform version
-                            terraform init -backend=false
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD version
+                    $TERRAFORM_CMD init -backend=false
+                '''
             }
         }
         
@@ -77,14 +95,11 @@ pipeline {
                 echo '================================================'
                 echo 'Validando configuracion de Terraform'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform validate
-                            echo "Configuracion valida"
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD validate
+                    echo "Configuracion valida"
+                '''
             }
         }
         
@@ -96,20 +111,17 @@ pipeline {
                 echo '================================================'
                 echo 'Generando plan de Terraform'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform plan \
-                                -var="environment=${ENVIRONMENT}" \
-                                -out=tfplan \
-                                -input=false
-                            
-                            echo ""
-                            echo "=== Plan Summary ==="
-                            terraform show -no-color tfplan | head -50
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD plan \
+                        -var="environment=${ENVIRONMENT}" \
+                        -out=tfplan \
+                        -input=false
+                    
+                    echo ""
+                    echo "=== Plan Summary ==="
+                    $TERRAFORM_CMD show -no-color tfplan | head -50
+                '''
             }
         }
         
@@ -121,20 +133,17 @@ pipeline {
                 echo '================================================'
                 echo 'Generando plan de destruccion'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform plan -destroy \
-                                -var="environment=${ENVIRONMENT}" \
-                                -out=tfplan \
-                                -input=false
-                            
-                            echo ""
-                            echo "=== Destroy Plan Summary ==="
-                            terraform show -no-color tfplan | head -50
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD plan -destroy \
+                        -var="environment=${ENVIRONMENT}" \
+                        -out=tfplan \
+                        -input=false
+                    
+                    echo ""
+                    echo "=== Destroy Plan Summary ==="
+                    $TERRAFORM_CMD show -no-color tfplan | head -50
+                '''
             }
         }
         
@@ -166,14 +175,11 @@ pipeline {
                 echo '================================================'
                 echo 'Aplicando cambios en AWS'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform apply -auto-approve tfplan
-                            echo "Infraestructura desplegada exitosamente"
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD apply -auto-approve tfplan
+                    echo "Infraestructura desplegada exitosamente"
+                '''
             }
         }
         
@@ -185,14 +191,11 @@ pipeline {
                 echo '================================================'
                 echo 'Destruyendo infraestructura'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform apply -auto-approve tfplan
-                            echo "Infraestructura destruida"
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD apply -auto-approve tfplan
+                    echo "Infraestructura destruida"
+                '''
             }
         }
         
@@ -204,14 +207,11 @@ pipeline {
                 echo '================================================'
                 echo 'Outputs de Terraform'
                 echo '================================================'
-                script {
-                    docker.image('hashicorp/terraform:1.6').inside('-u root') {
-                        sh '''
-                            terraform output -json > outputs.json || true
-                            cat outputs.json || echo "No hay outputs disponibles"
-                        '''
-                    }
-                }
+                sh '''
+                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
+                    $TERRAFORM_CMD output -json > outputs.json || true
+                    cat outputs.json || echo "No hay outputs disponibles"
+                '''
             }
         }
     }
