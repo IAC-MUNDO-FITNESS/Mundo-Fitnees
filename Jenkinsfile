@@ -34,6 +34,11 @@ pipeline {
             defaultValue: false,
             description: 'Omite la aprobacion manual para apply/destroy'
         )
+        booleanParam(
+            name: 'RESTORE_STATE_FROM_BACKUP',
+            defaultValue: false,
+            description: 'Copia terraform.tfstate.backup sobre terraform.tfstate antes de ejecutar Terraform'
+        )
     }
     
     options {
@@ -96,11 +101,34 @@ pipeline {
                     whoami
                     echo "Action: ${ACTION}"
                     echo "Environment: ${ENVIRONMENT}"
+                    echo "Restore state from backup: ${RESTORE_STATE_FROM_BACKUP}"
                     ./terraform version
                 '''
             }
         }
         
+        stage('Restore State') {
+            when {
+                expression { params.RESTORE_STATE_FROM_BACKUP }
+            }
+            steps {
+                echo '================================================'
+                echo 'Restaurando estado de Terraform desde backup'
+                echo '================================================'
+                sh '''
+                    set -e
+                    if [ ! -f terraform.tfstate.backup ]; then
+                        echo "No se encontro terraform.tfstate.backup en el workspace" >&2
+                        exit 1
+                    fi
+
+                    cp terraform.tfstate.backup terraform.tfstate
+                    echo "Estado restaurado."
+                    ls -l terraform.tfstate
+                '''
+            }
+        }
+
         stage('Terraform Init') {
             steps {
                 echo '================================================'
