@@ -34,11 +34,6 @@ pipeline {
             defaultValue: false,
             description: 'Omite la aprobacion manual para apply/destroy'
         )
-            booleanParam(
-                name: 'RESTORE_STATE_FROM_BACKUP',
-                defaultValue: false,
-                description: 'Copia terraform.tfstate.backup sobre terraform.tfstate antes de ejecutar Terraform'
-            )
         booleanParam(
             name: 'RESTORE_STATE_FROM_BACKUP',
             defaultValue: false,
@@ -112,46 +107,41 @@ pipeline {
             }
         }
 
-            stage('Restore State') {
-                when {
-                    expression { params.RESTORE_STATE_FROM_BACKUP }
-                }
-                steps {
         stage('Restore State') {
             when {
                 expression { params.RESTORE_STATE_FROM_BACKUP }
             }
             steps {
-                    script {
-                        echo '================================================'
-                        echo 'Restaurando estado de Terraform desde backup'
-                        echo '================================================'
+                script {
+                    echo '================================================'
+                    echo 'Restaurando estado de Terraform desde backup'
+                    echo '================================================'
 
-                        if (!fileExists('terraform.tfstate.backup')) {
-                            echo 'No se encontro terraform.tfstate.backup en el workspace actual. Intentando recuperar del ultimo build exitoso...'
-                            try {
-                                copyArtifacts(
-                                    projectName: env.JOB_NAME,
-                                    selector: lastSuccessful(),
-                                    filter: 'terraform.tfstate.backup',
-                                    optional: true
-                                )
-                            } catch (err) {
-                                echo "No se pudo copiar el backup desde otro build: ${err.message}"
-                            }
+                    if (!fileExists('terraform.tfstate.backup')) {
+                        echo 'No se encontro terraform.tfstate.backup en el workspace actual. Intentando recuperar del ultimo build exitoso...'
+                        try {
+                            copyArtifacts(
+                                projectName: env.JOB_NAME,
+                                selector: lastSuccessful(),
+                                filter: 'terraform.tfstate.backup',
+                                optional: true
+                            )
+                        } catch (err) {
+                            echo "No se pudo copiar el backup desde otro build: ${err.message}"
                         }
-
-                        if (!fileExists('terraform.tfstate.backup')) {
-                            error 'No se encontro terraform.tfstate.backup; sube el archivo como artefacto o desactiva RESTORE_STATE_FROM_BACKUP.'
-                        }
-
-                        sh '''
-                            set -e
-                            cp terraform.tfstate.backup terraform.tfstate
-                            echo "Estado restaurado."
-                            ls -l terraform.tfstate*
-                        '''
                     }
+
+                    if (!fileExists('terraform.tfstate.backup')) {
+                        error 'No se encontro terraform.tfstate.backup; sube el archivo como artefacto o desactiva RESTORE_STATE_FROM_BACKUP.'
+                    }
+
+                    sh '''
+                        set -e
+                        cp terraform.tfstate.backup terraform.tfstate
+                        echo "Estado restaurado."
+                        ls -l terraform.tfstate*
+                    '''
+                }
             }
         }
         
