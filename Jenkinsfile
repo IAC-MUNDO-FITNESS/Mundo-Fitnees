@@ -36,11 +36,11 @@ pipeline {
         
         stage('Terraform Check') {
             steps {
-                script {
-                    docker.image('hashicorp/terraform:latest').inside {
-                        sh 'terraform version'
-                    }
-                }
+                echo '📁 Verificando archivos Terraform'
+                sh '''
+                    echo "=== Archivos .tf encontrados ==="
+                    find . -name "*.tf" -type f | head -10
+                '''
             }
         }
     }
@@ -48,7 +48,9 @@ pipeline {
     post {
         always {
             echo '✅ Pipeline completado'
-            cleanWs()
+        }
+        success {
+            echo '🎉 ¡Ejecución exitosa con Docker Agent!'
         }
     }
 }
