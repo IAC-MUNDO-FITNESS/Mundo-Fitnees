@@ -29,6 +29,11 @@ pipeline {
             defaultValue: 'us-east-1',
             description: 'Region de AWS que usara Terraform'
         )
+        booleanParam(
+            name: 'AUTO_APPROVE',
+            defaultValue: false,
+            description: 'Omite la aprobacion manual para apply/destroy'
+        )
     }
     
     options {
@@ -199,7 +204,7 @@ pipeline {
         
         stage('Approval for Apply') {
             when {
-                expression { params.ACTION == 'apply' }
+                expression { params.ACTION == 'apply' && !params.AUTO_APPROVE }
             }
             steps {
                 echo 'Esperando aprobacion para aplicar cambios...'
@@ -209,7 +214,7 @@ pipeline {
         
         stage('Approval for Destroy') {
             when {
-                expression { params.ACTION == 'destroy' }
+                expression { params.ACTION == 'destroy' && !params.AUTO_APPROVE }
             }
             steps {
                 echo 'Esperando aprobacion para destruir infraestructura...'
@@ -226,6 +231,9 @@ pipeline {
                 echo 'Aplicando cambios en AWS'
                 echo '================================================'
                 script {
+                    if (params.AUTO_APPROVE) {
+                        echo 'AUTO_APPROVE habilitado: ejecutando apply sin aprobacion manual'
+                    }
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
                         withEnv([
                             "AWS_DEFAULT_REGION=${params.AWS_REGION}",
@@ -250,6 +258,9 @@ pipeline {
                 echo 'Destruyendo infraestructura'
                 echo '================================================'
                 script {
+                    if (params.AUTO_APPROVE) {
+                        echo 'AUTO_APPROVE habilitado: ejecutando destroy sin aprobacion manual'
+                    }
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
                         withEnv([
                             "AWS_DEFAULT_REGION=${params.AWS_REGION}",
