@@ -1,0 +1,41 @@
+# ============================================
+# PLUGINS REQUERIDOS PARA JENKINS
+# ============================================
+# Este archivo será usado por Jenkins para instalar plugins automáticamente
+
+# Core Plugins
+git:latest
+workflow-aggregator:latest
+pipeline-stage-view:latest
+credentials-binding:latest
+configuration-as-code:latest
+job-dsl:latest
+
+# Docker Support
+docker-plugin:latest
+docker-workflow:latest
+
+# AWS Integration
+aws-credentials:latest
+aws-java-sdk:latest
+
+# Terraform Support
+terraform:latest
+
+# Utility Plugins
+timestamper:latest
+build-timeout:latest
+ansicolor:latest
+
+# UI Enhancements
+blueocean:latest
+
+# Notifications
+email-ext:latest
+slack:latest
+
+# GitHub Integration
+github:latest
+
+# Testing
+junit:latest

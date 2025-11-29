@@ -1,0 +1,71 @@
+# ============================================
+# Datasource CloudWatch - Provisioning
+# Se carga automáticamente al iniciar Grafana
+# ============================================
+
+apiVersion: 1
+
+datasources:
+  # CloudWatch Datasource Principal
+  - name: AWS CloudWatch - El Mundo Fitness
+    type: cloudwatch
+    uid: cloudwatch-elmundo-fitness
+    access: proxy
+    isDefault: true
+    editable: true
+    
+    jsonData:
+      # Región de AWS
+      defaultRegion: us-east-1
+      
+      # Authentication usando variables de entorno
+      authType: keys
+      
+      # Namespaces personalizados para métricas
+      customMetricsNamespaces: el-mundo-fitness-dev/Lambda,el-mundo-fitness-prod/Lambda
+      
+      # Log Groups a monitorear
+      logGroups:
+        - /aws/lambda/el-mundo-fitness-dev-subscription-control
+        - /aws/lambda/el-mundo-fitness-dev-access-control
+        - /aws/lambda/el-mundo-fitness-dev-notification-service
+      
+      # Configuración de queries
+      defaultLogGroups:
+        - /aws/lambda/el-mundo-fitness-dev-subscription-control
+        - /aws/lambda/el-mundo-fitness-dev-access-control
+        - /aws/lambda/el-mundo-fitness-dev-notification-service
+      
+      # Timeout para queries
+      timeout: 30s
+    
+    # Credenciales de AWS (se toman de variables de entorno)
+    secureJsonData:
+      accessKey: ${AWS_ACCESS_KEY_ID}
+      secretKey: ${AWS_SECRET_ACCESS_KEY}
+
+  # CloudWatch Datasource para PRODUCCIÓN (opcional)
+  - name: AWS CloudWatch - PROD
+    type: cloudwatch
+    uid: cloudwatch-elmundo-fitness-prod
+    access: proxy
+    isDefault: false
+    editable: true
+    
+    jsonData:
+      defaultRegion: us-east-1
+      authType: keys
+      customMetricsNamespaces: el-mundo-fitness-prod/Lambda
+      logGroups:
+        - /aws/lambda/el-mundo-fitness-prod-subscription-control
+        - /aws/lambda/el-mundo-fitness-prod-access-control
+        - /aws/lambda/el-mundo-fitness-prod-notification-service
+      defaultLogGroups:
+        - /aws/lambda/el-mundo-fitness-prod-subscription-control
+        - /aws/lambda/el-mundo-fitness-prod-access-control
+        - /aws/lambda/el-mundo-fitness-prod-notification-service
+      timeout: 30s
+    
+    secureJsonData:
+      accessKey: ${AWS_ACCESS_KEY_ID}
+      secretKey: ${AWS_SECRET_ACCESS_KEY}

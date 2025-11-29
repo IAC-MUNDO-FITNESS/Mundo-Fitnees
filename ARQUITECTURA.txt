@@ -1,0 +1,191 @@
+# ============================================
+# DIAGRAMA DE ARQUITECTURA - EL MUNDO FITNESS
+# Representación en texto de la infraestructura
+# ============================================
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                    AWS CLOUD                                        │
+│                                  Region: us-east-1                                  │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              VPC: 10.0.0.0/16                                       │
+│                                                                                     │
+│  ┌───────────────────────────────────┐  ┌──────────────────────────────────────┐  │
+│  │   SUBNET PÚBLICA                  │  │   SUBNET PRIVADA                     │  │
+│  │   10.0.101.0/24                   │  │   10.0.1.0/24                        │  │
+│  │   (us-east-1a)                    │  │   (us-east-1a)                       │  │
+│  │                                   │  │                                      │  │
+│  │  ┌─────────────────────┐          │  │  ┌────────────────────────────────┐ │  │
+│  │  │   NAT Gateway       │          │  │  │  Lambda Functions              │ │  │
+│  │  │   (Elastic IP)      │◄─────────┼──┼──┤                                │ │  │
+│  │  └─────────────────────┘          │  │  │  1. Subscription Control       │ │  │
+│  │           │                       │  │  │     - Node.js 18.x             │ │  │
+│  │           │                       │  │  │     - Memory: 256MB            │ │  │
+│  │           │                       │  │  │                                │ │  │
+│  │  ┌─────────────────────┐          │  │  │  2. Access Control             │ │  │
+│  │  │  Internet Gateway   │          │  │  │     - Node.js 18.x             │ │  │
+│  │  │      (IGW)          │          │  │  │     - Memory: 256MB            │ │  │
+│  │  └─────────────────────┘          │  │  │                                │ │  │
+│  │           │                       │  │  │  3. Notification Service       │ │  │
+│  └───────────┼───────────────────────┘  │  │     - Node.js 18.x             │ │  │
+│              │                          │  │     - Memory: 256MB            │ │  │
+│              │                          │  │                                │ │  │
+│              │                          │  │  Security Group: Lambda SG     │ │  │
+│              │                          │  │  - Egress: 443 (HTTPS)         │ │  │
+│              │                          │  └────────────────────────────────┘ │  │
+│              │                          │              │                       │  │
+│              │                          │              │                       │  │
+│              │                          │  ┌───────────▼──────────────────┐   │  │
+│              │                          │  │  VPC Endpoints (Gateway)     │   │  │
+│              │                          │  │                              │   │  │
+│              │                          │  │  • S3 Endpoint               │   │  │
+│              │                          │  │  • DynamoDB Endpoint         │   │  │
+│              │                          │  │                              │   │  │
+│              │                          │  │  (Conexión Privada)          │   │  │
+│              │                          │  └──────────────────────────────┘   │  │
+│              │                          │                                      │  │
+└──────────────┼──────────────────────────┴──────────────────────────────────────┘  │
+               │                                                                     │
+               │                                                                     │
+┌──────────────▼─────────────────────────────────────────────────────────────────────┐
+│                             INTERNET                                               │
+└────────────────────────────────────────────────────────────────────────────────────┘
+               │
+               │
+    ┌──────────▼──────────┐
+    │   Usuarios          │
+    │   (Clientes)        │
+    └──────────┬──────────┘
+               │
+               │
+┌──────────────▼─────────────────────────────────────────────────────────────────────┐
+│                       SERVICIOS DE INTEGRACIÓN                                     │
+│                                                                                    │
+│  ┌─────────────────────┐      ┌──────────────────────┐      ┌──────────────────┐ │
+│  │  Amazon CloudFront  │      │   AWS WAF            │      │   Amazon Cognito │ │
+│  │    (Opcional)       │      │   (Opcional)         │      │   User Pool      │ │
+│  └─────────────────────┘      └──────────────────────┘      └─────────┬────────┘ │
+│                                                                        │          │
+│  ┌──────────────────────────────────────────────────────────────────┐ │          │
+│  │                    API Gateway (HTTP API)                        │ │          │
+│  │                                                                  │ │          │
+│  │  Routes:                                                         │ │          │
+│  │  • POST /subscription  ─────► Lambda Subscription Control       │ │          │
+│  │  • POST /access        ─────► Lambda Access Control             │ │          │
+│  │  • POST /notification  ─────► Lambda Notification Service       │ │          │
+│  │                                                                  │ │          │
+│  │  CORS: Enabled                                                   │ │          │
+│  │  Stage: dev                                                      │ │          │
+│  └──────────────────────────────────────────────────────────────────┘ │          │
+│                                                                        │          │
+│                                                                        │          │
+│  Authentication Flow: ────────────────────────────────────────────────┘          │
+│                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       │
+┌──────────────────────────────────────┼─────────────────────────────────────────────┐
+│                        CAPA DE DATOS                                               │
+│                                      │                                             │
+│  ┌───────────────────────────────────▼──────────────────────────────────────────┐ │
+│  │                           Amazon DynamoDB                                    │ │
+│  │                                                                              │ │
+│  │  Tablas:                                                                     │ │
+│  │                                                                              │ │
+│  │  1. elmundo-fitness-usuarios-dev                                            │ │
+│  │     - Hash Key: userId (String)                                             │ │
+│  │     - GSI: EmailIndex (email)                                               │ │
+│  │     - Billing: PAY_PER_REQUEST                                              │ │
+│  │                                                                              │ │
+│  │  2. elmundo-fitness-pagos-dev                                               │ │
+│  │     - Hash Key: pagoId (String)                                             │ │
+│  │     - Range Key: timestamp (Number)                                         │ │
+│  │     - GSI: UserIdIndex (userId, timestamp)                                  │ │
+│  │     - Billing: PAY_PER_REQUEST                                              │ │
+│  │                                                                              │ │
+│  │  3. elmundo-fitness-historial-asistencia-dev                                │ │
+│  │     - Hash Key: asistenciaId (String)                                       │ │
+│  │     - Range Key: timestamp (Number)                                         │ │
+│  │     - GSI: UserIdIndex (userId, timestamp)                                  │ │
+│  │     - Billing: PAY_PER_REQUEST                                              │ │
+│  │                                                                              │ │
+│  │  Conexión: A través de VPC Endpoint (Sin NAT Gateway)                       │ │
+│  └──────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                   │
+│  ┌──────────────────────────────────────────────────────────────────────────────┐ │
+│  │                              Amazon S3                                       │ │
+│  │                                                                              │ │
+│  │  Bucket: elmundo-fitness-frontend-dev-[ACCOUNT_ID]                          │ │
+│  │  - Website Hosting: Enabled                                                 │ │
+│  │  - Versioning: Enabled                                                      │ │
+│  │  - Public Access: Blocked                                                   │ │
+│  │  - Encryption: AES-256                                                      │ │
+│  │                                                                              │ │
+│  │  Contenido: Aplicación Web Frontend (HTML, CSS, JS)                         │ │
+│  │  Conexión: A través de VPC Endpoint (Sin NAT Gateway)                       │ │
+│  └──────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                           SERVICIOS DE SOPORTE                                    │
+│                                                                                   │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐   │
+│  │  CloudWatch Logs     │  │  CloudWatch Metrics  │  │  AWS X-Ray          │   │
+│  │  - Lambda Logs       │  │  - Lambda Metrics    │  │  (Tracing)          │   │
+│  │  - API Gateway Logs  │  │  - API Metrics       │  │  (Opcional)         │   │
+│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘   │
+│                                                                                   │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐   │
+│  │  IAM Roles           │  │  Security Groups     │  │  NACLs              │   │
+│  │  - Lambda Exec Role  │  │  - Lambda SG         │  │  (Default)          │   │
+│  │  - API Gateway Role  │  │  - VPC Security      │  │                     │   │
+│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘   │
+│                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                         FLUJO DE DATOS TÍPICO                                     │
+│                                                                                   │
+│  1. Usuario accede a la aplicación web (S3/CloudFront)                           │
+│  2. Usuario se autentica con Cognito                                             │
+│  3. Usuario realiza petición HTTP a API Gateway                                  │
+│  4. API Gateway valida el token de Cognito                                       │
+│  5. API Gateway invoca la función Lambda correspondiente                         │
+│  6. Lambda (en subnet privada) accede a DynamoDB vía VPC Endpoint               │
+│  7. Lambda procesa la solicitud y retorna respuesta                              │
+│  8. API Gateway devuelve respuesta al usuario                                    │
+│                                                                                   │
+│  Ventajas de esta Arquitectura:                                                  │
+│  ✅ Lambdas en subnet privada (mayor seguridad)                                  │
+│  ✅ VPC Endpoints para DynamoDB/S3 (sin costos de transferencia de datos)       │
+│  ✅ NAT Gateway para acceso a Internet (APIs externas, updates)                 │
+│  ✅ Arquitectura serverless (escalable y económica)                              │
+│  ✅ Cognito para autenticación (OAuth 2.0 / OIDC)                               │
+│                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                         ESTIMACIÓN DE COSTOS MENSUALES                            │
+│                                                                                   │
+│  Recurso                          │ Uso Estimado         │ Costo Mensual        │
+│  ─────────────────────────────────┼──────────────────────┼─────────────────────│
+│  NAT Gateway                      │ 730 hrs + datos      │ ~$32-45              │
+│  Lambda (3 funciones)             │ 1M invocaciones      │ Free Tier            │
+│  DynamoDB (3 tablas)              │ 25GB + 200M requests │ Free Tier            │
+│  API Gateway                      │ 1M requests          │ Free Tier            │
+│  S3                               │ 5GB + requests       │ ~$0.50               │
+│  Cognito                          │ <50K usuarios        │ Free Tier            │
+│  CloudWatch Logs                  │ 5GB                  │ ~$2.50               │
+│  Data Transfer                    │ Variable             │ ~$5-10               │
+│  ─────────────────────────────────┼──────────────────────┼─────────────────────│
+│  TOTAL ESTIMADO                   │                      │ ~$40-60 / mes        │
+│                                                                                   │
+│  Nota: El NAT Gateway es el componente más costoso. Para reducir costos en DEV,  │
+│        considera usar VPC Endpoints para todos los servicios AWS posibles.       │
+│                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────┘

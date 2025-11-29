@@ -1,0 +1,240 @@
+# ============================================
+# ESTRUCTURA MODULAR DEL PROYECTO
+# El Mundo Fitness - IaC con Terraform
+# ============================================
+
+IAC VALVERDE/
+│
+├── 📄 main.tf                           # Orquestación principal (solo módulos)
+├── 📄 variables.tf                      # Variables globales del proyecto
+├── 📄 outputs.tf                        # Outputs consolidados
+├── 📄 backend.tf                        # Configuración backend remoto (S3)
+├── 📄 terraform.tfvars.example          # Ejemplo de variables
+├── 📄 .gitignore                        # Ignorar archivos sensibles
+│
+├── 🔧 Jenkinsfile                       # Pipeline CI/CD
+├── 📜 deploy.ps1                        # Script PowerShell de despliegue
+│
+├── 📖 README.md                         # Documentación principal
+├── 📖 COMANDOS_UTILES.md                # Comandos útiles de Terraform/AWS
+├── 📖 ARQUITECTURA.txt                  # Diagrama de arquitectura
+│
+├── 📁 modules/                          # Módulos Terraform reutilizables
+│   │
+│   ├── 📁 vpc/                         # Módulo de VPC y Networking
+│   │   ├── main.tf                     # VPC, Subnets, IGW, NAT, Endpoints
+│   │   ├── variables.tf                # Variables del módulo VPC
+│   │   └── outputs.tf                  # Outputs del módulo VPC
+│   │
+│   ├── 📁 dynamodb/                    # Módulo de DynamoDB
+│   │   ├── main.tf                     # 3 Tablas DynamoDB
+│   │   ├── variables.tf                # Variables del módulo DynamoDB
+│   │   └── outputs.tf                  # Outputs del módulo DynamoDB
+│   │
+│   ├── 📁 s3/                          # Módulo de S3
+│   │   ├── main.tf                     # Bucket S3 para frontend
+│   │   ├── variables.tf                # Variables del módulo S3
+│   │   └── outputs.tf                  # Outputs del módulo S3
+│   │
+│   ├── 📁 lambda/                      # Módulo de Lambda
+│   │   ├── main.tf                     # 3 Funciones Lambda + IAM + SG
+│   │   ├── variables.tf                # Variables del módulo Lambda
+│   │   └── outputs.tf                  # Outputs del módulo Lambda
+│   │
+│   ├── 📁 api-gateway/                 # Módulo de API Gateway
+│   │   ├── main.tf                     # HTTP API + Integraciones
+│   │   ├── variables.tf                # Variables del módulo API Gateway
+│   │   └── outputs.tf                  # Outputs del módulo API Gateway
+│   │
+│   └── 📁 cognito/                     # Módulo de Cognito
+│       ├── main.tf                     # User Pool + Client + Domain
+│       ├── variables.tf                # Variables del módulo Cognito
+│       └── outputs.tf                  # Outputs del módulo Cognito
+│
+├── 📁 environments/                     # Configuraciones por ambiente
+│   ├── 📁 dev/
+│   │   └── terraform.tfvars            # Variables para desarrollo
+│   └── 📁 prod/
+│       └── terraform.tfvars            # Variables para producción
+│
+└── 📁 lambda-code-examples/            # Código Lambda de ejemplo
+    ├── subscription-control.js          # Lambda de suscripciones
+    ├── access-control.js                # Lambda de control de acceso
+    ├── notification-service.js          # Lambda de notificaciones
+    ├── package.json                     # Dependencias Node.js
+    └── README.md                        # Documentación del código Lambda
+
+
+# ============================================
+# FLUJO DE DEPENDENCIAS ENTRE MÓDULOS
+# ============================================
+
+┌─────────────┐
+│   main.tf   │ ◄─── Orquesta todos los módulos
+└──────┬──────┘
+       │
+       ├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+       │              │              │              │              │              │
+       ▼              ▼              ▼              ▼              ▼              ▼
+┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐
+│    VPC     │ │  DynamoDB  │ │     S3     │ │   Lambda   │ │    API     │ │  Cognito   │
+│   Module   │ │   Module   │ │   Module   │ │   Module   │ │  Gateway   │ │   Module   │
+└────┬───────┘ └─────┬──────┘ └────────────┘ └─────┬──────┘ └─────┬──────┘ └────────────┘
+     │               │                              │              │
+     │               │                              │              │
+     └───────┬───────┴──────────────────────────────┤              │
+             │                                      │              │
+             └──────────────────────────────────────┴──────────────┘
+                           Dependencies Flow
+
+
+# ============================================
+# CARACTERÍSTICAS DE LA ARQUITECTURA MODULAR
+# ============================================
+
+✅ Separación de Responsabilidades
+   Cada módulo tiene una única responsabilidad bien definida
+
+✅ Reutilización
+   Los módulos pueden ser reutilizados en otros proyectos
+
+✅ Testing Aislado
+   Cada módulo puede ser probado independientemente
+
+✅ Versionado Granular
+   Control de versiones por módulo
+
+✅ Mantenimiento Simplificado
+   Cambios localizados sin afectar otros componentes
+
+✅ Documentación Clara
+   Cada módulo documenta sus inputs y outputs
+
+✅ Escalabilidad
+   Fácil agregar nuevos módulos o recursos
+
+
+# ============================================
+# ORDEN DE CREACIÓN DE RECURSOS
+# ============================================
+
+1. 🌐 VPC Module
+   └── VPC, Subnets, IGW, NAT Gateway, Route Tables, VPC Endpoints
+
+2. 📊 DynamoDB Module (paralelo con VPC)
+   └── Tablas: usuarios, pagos, historial_asistencia
+
+3. 🪣 S3 Module (paralelo con DynamoDB)
+   └── Bucket frontend con configuraciones
+
+4. ⚡ Lambda Module (depende de VPC y DynamoDB)
+   └── Security Group → IAM Role → 3 Funciones Lambda
+
+5. 🔌 API Gateway Module (depende de Lambda)
+   └── HTTP API → Integraciones → Rutas → Permisos
+
+6. 🔐 Cognito Module (independiente)
+   └── User Pool → Client → Domain
+
+
+# ============================================
+# VENTAJAS DE ESTA ESTRUCTURA
+# ============================================
+
+📦 MODULARIDAD
+   - Código organizado por función
+   - Fácil de entender y mantener
+   - Reduce duplicación de código
+
+🔄 REUTILIZACIÓN
+   - Módulos pueden usarse en múltiples proyectos
+   - Facilita la estandarización
+
+🧪 TESTING
+   - Test unitario por módulo
+   - Test de integración en main.tf
+
+📈 ESCALABILIDAD
+   - Agregar nuevos módulos sin afectar existentes
+   - Composición flexible de infraestructura
+
+👥 COLABORACIÓN
+   - Equipos pueden trabajar en módulos diferentes
+   - Menos conflictos en Git
+
+🔒 SEGURIDAD
+   - Políticas por módulo
+   - Aislamiento de recursos
+
+📊 VERSIONADO
+   - Control de versiones independiente por módulo
+   - Rollback granular
+
+
+# ============================================
+# COMANDOS COMUNES
+# ============================================
+
+# Inicializar (descarga módulos y providers)
+terraform init
+
+# Validar sintaxis y configuración
+terraform validate
+
+# Formatear código
+terraform fmt -recursive
+
+# Plan de ejecución
+terraform plan
+
+# Aplicar cambios
+terraform apply
+
+# Aplicar con archivo de variables específico
+terraform apply -var-file="environments/dev/terraform.tfvars"
+
+# Ver outputs
+terraform output
+
+# Destruir infraestructura
+terraform destroy
+
+# Actualizar módulos
+terraform get -update
+
+# Ver gráfico de dependencias
+terraform graph | dot -Tpng > graph.png
+
+
+# ============================================
+# MEJORES PRÁCTICAS IMPLEMENTADAS
+# ============================================
+
+✓ Módulos con responsabilidad única
+✓ Variables con tipos y descripciones
+✓ Outputs documentados
+✓ Tags consistentes
+✓ Nombrado estandarizado
+✓ Ambientes separados (dev/prod)
+✓ Backend remoto configurado
+✓ .gitignore apropiado
+✓ Documentación completa
+✓ Pipeline de CI/CD (Jenkins)
+✓ Seguridad por diseño
+✓ Escalabilidad considerada
+
+
+# ============================================
+# PRÓXIMOS PASOS (OPCIONAL)
+# ============================================
+
+□ Implementar módulo de CloudWatch Alarms
+□ Agregar módulo de CloudFront para el frontend
+□ Crear módulo de WAF para seguridad
+□ Implementar módulo de Route53 para DNS
+□ Agregar módulo de Secrets Manager
+□ Configurar módulo de VPC Flow Logs
+□ Implementar módulo de AWS Backup
+□ Agregar tests automatizados (Terratest)
+□ Configurar múltiples ambientes (staging)
+□ Implementar GitOps con Terraform Cloud

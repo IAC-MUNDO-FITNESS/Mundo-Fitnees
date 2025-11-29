@@ -1,0 +1,159 @@
+jenkins:
+  systemMessage: "Jenkins Server - El Mundo Fitness Infrastructure"
+  numExecutors: 2
+  mode: NORMAL
+  scmCheckoutRetryCount: 3
+  labelString: "master"
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          name: "Administrator"
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+  remotingSecurity:
+    enabled: true
+
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+
+  # clouds:
+  #   - docker:
+  #       name: "docker"
+  #       dockerApi:
+  #         dockerHost:
+  #           uri: "unix:///var/run/docker.sock"
+  #       templates:
+  #         - labelString: "docker-agent"
+  #           dockerTemplateBase:
+  #             image: "jenkins/agent:latest"
+  #             volumes:
+  #               - "/var/run/docker.sock:/var/run/docker.sock"
+  #           remoteFs: "/home/jenkins/agent"
+  #           connector:
+  #             attach:
+  #               user: "jenkins"
+  #           instanceCapStr: "4"
+  #           retentionStrategy:
+  #             idleMinutes: 10
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "aws-credentials"
+              username: "${AWS_ACCESS_KEY_ID}"
+              password: "${AWS_SECRET_ACCESS_KEY}"
+              description: "AWS Credentials for Terraform"
+          
+          - string:
+              scope: GLOBAL
+              id: "aws-region"
+              secret: "us-east-1"
+              description: "AWS Default Region"
+          
+          - string:
+              scope: GLOBAL
+              id: "terraform-backend-bucket"
+              secret: "elmundo-fitness-terraform-state"
+              description: "S3 Bucket for Terraform State"
+          
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-credentials"
+              username: "francoalessandro"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub Repository Access"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+    adminAddress: "admin@elmundofitness.com"
+  
+  globalLibraries:
+    libraries:
+      - name: "shared-library"
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "https://github.com/francoalessandro/shared-jenkins-library.git"
+                credentialsId: "github-credentials"
+  
+  timestamper:
+    allPipelines: true
+  
+  buildDiscarders:
+    configuredBuildDiscarders:
+      - "jobBuildDiscarder"
+      - simpleBuildDiscarder:
+          discarder:
+            logRotator:
+              numToKeepStr: "10"
+              artifactNumToKeepStr: "5"
+
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+  
+  terraform:
+    installations:
+      - name: "Terraform"
+        properties:
+          - installSource:
+              installers:
+                - terraformInstaller:
+                    id: "1.6.0"
+
+# jobs:
+#   - script: >
+#       pipelineJob('elmundo-fitness-infrastructure') {
+#         description('Deploy El Mundo Fitness AWS Infrastructure using Terraform')
+#         
+#         definition {
+#           cpsScm {
+#             scm {
+#               git {
+#                 remote {
+#                   url('https://github.com/francoalessandro/iac-elmundo-fitness.git')
+#                   credentials('github-credentials')
+#                 }
+#                 branch('*/main')
+#               }
+#             }
+#             scriptPath('Jenkinsfile')
+#           }
+#         }
+#         
+#         triggers {
+#           pollSCM('H/5 * * * *')
+#         }
+#         
+#         properties {
+#           buildDiscarder {
+#             strategy {
+#               logRotator {
+#                 numToKeepStr('10')
+#                 artifactNumToKeepStr('5')
+#               }
+#             }
+#           }
+#           
+#           parameters {
+#             stringParam('ENVIRONMENT', 'dev', 'Environment to deploy (dev/staging/prod)')
+#             booleanParam('AUTO_APPROVE', false, 'Auto-approve Terraform apply')
+#             choiceParam('AWS_REGION', ['us-east-1', 'us-west-2', 'eu-west-1'], 'AWS Region')
+#           }
+#         }
+#       }

@@ -1,0 +1,123 @@
+# ============================================
+# INFRAESTRUCTURA COMO CÓDIGO - EL MUNDO FITNESS
+# Arquitectura AWS Serverless con VPC Privada
+# Estructura Modular con Best Practices
+# ============================================
+
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = var.common_tags
+  }
+}
+
+# ============================================
+# DATA SOURCES
+# ============================================
+
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
+# ============================================
+# MÓDULO VPC
+# ============================================
+
+module "vpc" {
+  source = "./modules/vpc"
+
+  project_name        = "${var.project_name}-${var.environment}"
+  aws_region          = var.aws_region
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidr  = var.public_subnet_cidr
+  private_subnet_cidr = var.private_subnet_cidr
+  availability_zone   = var.availability_zone
+  tags                = var.common_tags
+}
+
+# ============================================
+# MÓDULO DYNAMODB
+# ============================================
+
+module "dynamodb" {
+  source = "./modules/dynamodb"
+
+  project_name = "${var.project_name}-${var.environment}"
+  billing_mode = var.dynamodb_billing_mode
+  tags         = var.common_tags
+}
+
+# ============================================
+# MÓDULO S3
+# ============================================
+
+module "s3" {
+  source = "./modules/s3"
+
+  project_name        = "${var.project_name}-${var.environment}"
+  account_id          = data.aws_caller_identity.current.account_id
+  block_public_access = true
+  enable_versioning   = true
+  tags                = var.common_tags
+}
+
+# ============================================
+# MÓDULO LAMBDA
+# ============================================
+
+module "lambda" {
+  source = "./modules/lambda"
+
+  project_name          = "${var.project_name}-${var.environment}"
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_id     = module.vpc.private_subnet_id
+  usuarios_table_name   = module.dynamodb.usuarios_table_name
+  historial_table_name  = module.dynamodb.historial_table_name
+  dynamodb_table_arns   = module.dynamodb.all_table_arns
+  lambda_runtime        = var.lambda_runtime
+  lambda_memory_size    = var.lambda_memory_size
+  lambda_timeout        = var.lambda_timeout
+  tags                  = var.common_tags
+}
+
+# ============================================
+# MÓDULO API GATEWAY
+# ============================================
+
+module "api_gateway" {
+  source = "./modules/api-gateway"
+
+  project_name                        = "${var.project_name}-${var.environment}"
+  environment                         = var.environment
+  subscription_control_function_name  = module.lambda.subscription_control_function_name
+  subscription_control_invoke_arn     = module.lambda.subscription_control_invoke_arn
+  access_control_function_name        = module.lambda.access_control_function_name
+  access_control_invoke_arn           = module.lambda.access_control_invoke_arn
+  notification_service_function_name  = module.lambda.notification_service_function_name
+  notification_service_invoke_arn     = module.lambda.notification_service_invoke_arn
+  tags                                = var.common_tags
+}
+
+# ============================================
+# MÓDULO COGNITO
+# ============================================
+
+module "cognito" {
+  source = "./modules/cognito"
+
+  project_name = "${var.project_name}-${var.environment}"
+  account_id   = data.aws_caller_identity.current.account_id
+  tags         = var.common_tags
+}

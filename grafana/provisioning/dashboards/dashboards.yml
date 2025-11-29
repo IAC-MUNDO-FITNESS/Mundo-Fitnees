@@ -1,0 +1,18 @@
+# ============================================
+# Dashboard Provisioning - Auto-load
+# ============================================
+
+apiVersion: 1
+
+providers:
+  # Dashboards desde directorio local
+  - name: 'El Mundo Fitness Dashboards'
+    orgId: 1
+    folder: 'El Mundo Fitness'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

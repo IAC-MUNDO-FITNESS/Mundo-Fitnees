@@ -1,0 +1,176 @@
+# ============================================
+# Outputs - Información de la Infraestructura
+# ============================================
+
+# ============================================
+# VPC y Red
+# ============================================
+
+output "vpc_id" {
+  description = "ID de la VPC"
+  value       = aws_vpc.main.id
+}
+
+output "public_subnet_id" {
+  description = "ID de la subnet pública"
+  value       = aws_subnet.public.id
+}
+
+output "private_subnet_id" {
+  description = "ID de la subnet privada"
+  value       = aws_subnet.private.id
+}
+
+output "nat_gateway_ip" {
+  description = "IP pública del NAT Gateway"
+  value       = aws_eip.nat.public_ip
+}
+
+# ============================================
+# DynamoDB
+# ============================================
+
+output "dynamodb_usuarios_table" {
+  description = "Nombre de la tabla de Usuarios"
+  value       = aws_dynamodb_table.usuarios.name
+}
+
+output "dynamodb_pagos_table" {
+  description = "Nombre de la tabla de Pagos"
+  value       = aws_dynamodb_table.pagos.name
+}
+
+output "dynamodb_historial_table" {
+  description = "Nombre de la tabla de Historial de Asistencia"
+  value       = aws_dynamodb_table.historial_asistencia.name
+}
+
+# ============================================
+# S3
+# ============================================
+
+output "s3_frontend_bucket_name" {
+  description = "Nombre del bucket S3 para frontend"
+  value       = aws_s3_bucket.frontend.id
+}
+
+output "s3_frontend_bucket_arn" {
+  description = "ARN del bucket S3 para frontend"
+  value       = aws_s3_bucket.frontend.arn
+}
+
+output "s3_website_endpoint" {
+  description = "Endpoint del website S3"
+  value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
+}
+
+# ============================================
+# Lambda Functions
+# ============================================
+
+output "lambda_subscription_control_arn" {
+  description = "ARN de Lambda Subscription Control"
+  value       = aws_lambda_function.subscription_control.arn
+}
+
+output "lambda_access_control_arn" {
+  description = "ARN de Lambda Access Control"
+  value       = aws_lambda_function.access_control.arn
+}
+
+output "lambda_notification_service_arn" {
+  description = "ARN de Lambda Notification Service"
+  value       = aws_lambda_function.notification_service.arn
+}
+
+# ============================================
+# API Gateway
+# ============================================
+
+output "api_gateway_endpoint" {
+  description = "Endpoint del API Gateway"
+  value       = aws_apigatewayv2_api.main.api_endpoint
+}
+
+output "api_gateway_id" {
+  description = "ID del API Gateway"
+  value       = aws_apigatewayv2_api.main.id
+}
+
+output "api_gateway_full_url" {
+  description = "URL completa del API Gateway con stage"
+  value       = "${aws_apigatewayv2_api.main.api_endpoint}/${var.environment}"
+}
+
+# ============================================
+# Cognito
+# ============================================
+
+output "cognito_user_pool_id" {
+  description = "ID del Cognito User Pool"
+  value       = aws_cognito_user_pool.main.id
+}
+
+output "cognito_user_pool_arn" {
+  description = "ARN del Cognito User Pool"
+  value       = aws_cognito_user_pool.main.arn
+}
+
+output "cognito_client_id" {
+  description = "ID del Cliente de Cognito"
+  value       = aws_cognito_user_pool_client.main.id
+}
+
+output "cognito_domain" {
+  description = "Dominio de Cognito"
+  value       = aws_cognito_user_pool_domain.main.domain
+}
+
+# ============================================
+# Endpoints URLs para Testing
+# ============================================
+
+output "api_endpoints" {
+  description = "Endpoints de la API para testing"
+  value = {
+    subscription   = "${aws_apigatewayv2_api.main.api_endpoint}/${var.environment}/subscription"
+    access         = "${aws_apigatewayv2_api.main.api_endpoint}/${var.environment}/access"
+    notification   = "${aws_apigatewayv2_api.main.api_endpoint}/${var.environment}/notification"
+  }
+}
+
+# ============================================
+# Información de Seguridad
+# ============================================
+
+output "security_group_lambda_id" {
+  description = "ID del Security Group de las Lambdas"
+  value       = aws_security_group.lambda.id
+}
+
+output "vpc_endpoint_s3_id" {
+  description = "ID del VPC Endpoint de S3"
+  value       = aws_vpc_endpoint.s3.id
+}
+
+output "vpc_endpoint_dynamodb_id" {
+  description = "ID del VPC Endpoint de DynamoDB"
+  value       = aws_vpc_endpoint.dynamodb.id
+}
+
+# ============================================
+# Resumen de la Infraestructura
+# ============================================
+
+output "infrastructure_summary" {
+  description = "Resumen de la infraestructura desplegada"
+  value = {
+    region              = var.aws_region
+    environment         = var.environment
+    vpc_cidr            = var.vpc_cidr
+    api_url             = "${aws_apigatewayv2_api.main.api_endpoint}/${var.environment}"
+    cognito_pool_id     = aws_cognito_user_pool.main.id
+    frontend_bucket     = aws_s3_bucket.frontend.id
+    nat_gateway_ip      = aws_eip.nat.public_ip
+  }
+}
