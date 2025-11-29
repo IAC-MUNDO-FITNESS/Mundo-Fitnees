@@ -9,7 +9,6 @@ pipeline {
     }
     
     options {
-        timestamps()
         timeout(time: 30, unit: 'MINUTES')
     }
     
@@ -17,7 +16,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo '================================================'
-                echo 'Ì≥¶ C√≥digo descargado'
+                echo 'ÔøΩÔøΩÔøΩ C√≥digo descargado'
                 echo '================================================'
                 checkout scm
                 sh 'ls -la && pwd'
@@ -26,7 +25,7 @@ pipeline {
         
         stage('Environment Info') {
             steps {
-                echo 'Ì¥ç Informaci√≥n del entorno'
+                echo 'ÔøΩÔøΩÔøΩ Informaci√≥n del entorno'
                 sh '''
                     uname -a
                     whoami
