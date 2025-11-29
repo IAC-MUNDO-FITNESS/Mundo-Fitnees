@@ -4,9 +4,7 @@
 // ============================================
 
 pipeline {
-    agent {
-        label 'docker-agent'
-    }
+    agent none
     
     parameters {
         choice(
@@ -27,6 +25,9 @@ pipeline {
     
     stages {
         stage('Checkout') {
+            agent {
+                label 'docker-agent'
+            }
             steps {
                 echo '================================================'
                 echo 'Descargando codigo del repositorio'
@@ -37,10 +38,18 @@ pipeline {
                     echo "Commit: ${GIT_COMMIT}"
                     ls -la
                 '''
+                stash includes: '**/*', name: 'workspace'
             }
         }
         
         stage('Environment Info') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Informacion del entorno'
@@ -48,56 +57,49 @@ pipeline {
                 sh '''
                     uname -a
                     whoami
-                    echo "Node: ${NODE_NAME}"
-                    echo "Workspace: ${WORKSPACE}"
                     echo "Action: ${ACTION}"
                     echo "Environment: ${ENVIRONMENT}"
-                '''
-            }
-        }
-        
-        stage('Install Terraform') {
-            steps {
-                echo '================================================'
-                echo 'Instalando Terraform'
-                echo '================================================'
-                sh '''
-                    # Verificar si terraform ya esta instalado
-                    if command -v terraform >/dev/null 2>&1; then
-                        echo "Terraform ya esta instalado:"
-                        terraform version
-                    else
-                        echo "Instalando Terraform..."
-                        wget -q https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
-                        unzip -q terraform_1.6.6_linux_amd64.zip
-                        chmod +x terraform
-                        ./terraform version
-                    fi
+                    terraform version
                 '''
             }
         }
         
         stage('Terraform Init') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Inicializando Terraform'
                 echo '================================================'
+                unstash 'workspace'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD version
-                    $TERRAFORM_CMD init -backend=false
+                    terraform version
+                    terraform init -backend=false
                 '''
             }
         }
         
         stage('Terraform Validate') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Validando configuracion de Terraform'
                 echo '================================================'
+                unstash 'workspace'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD validate
+                    terraform init -backend=false
+                    terraform validate
                     echo "Configuracion valida"
                 '''
             }
@@ -107,21 +109,30 @@ pipeline {
             when {
                 expression { params.ACTION == 'plan' || params.ACTION == 'apply' }
             }
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Generando plan de Terraform'
                 echo '================================================'
+                unstash 'workspace'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD plan \
+                    terraform init -backend=false
+                    terraform plan \
                         -var="environment=${ENVIRONMENT}" \
                         -out=tfplan \
                         -input=false
                     
                     echo ""
                     echo "=== Plan Summary ==="
-                    $TERRAFORM_CMD show -no-color tfplan | head -50
+                    terraform show -no-color tfplan | head -50
                 '''
+                stash includes: 'tfplan', name: 'tfplan'
             }
         }
         
@@ -129,27 +140,39 @@ pipeline {
             when {
                 expression { params.ACTION == 'destroy' }
             }
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Generando plan de destruccion'
                 echo '================================================'
+                unstash 'workspace'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD plan -destroy \
+                    terraform init -backend=false
+                    terraform plan -destroy \
                         -var="environment=${ENVIRONMENT}" \
                         -out=tfplan \
                         -input=false
                     
                     echo ""
                     echo "=== Destroy Plan Summary ==="
-                    $TERRAFORM_CMD show -no-color tfplan | head -50
+                    terraform show -no-color tfplan | head -50
                 '''
+                stash includes: 'tfplan', name: 'tfplan'
             }
         }
         
         stage('Approval for Apply') {
             when {
                 expression { params.ACTION == 'apply' }
+            }
+            agent {
+                label 'docker-agent'
             }
             steps {
                 echo 'Esperando aprobacion para aplicar cambios...'
@@ -161,6 +184,9 @@ pipeline {
             when {
                 expression { params.ACTION == 'destroy' }
             }
+            agent {
+                label 'docker-agent'
+            }
             steps {
                 echo 'Esperando aprobacion para destruir infraestructura...'
                 input message: 'DESTRUIR la infraestructura en AWS?', ok: 'Si, destruir'
@@ -171,13 +197,22 @@ pipeline {
             when {
                 expression { params.ACTION == 'apply' }
             }
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Aplicando cambios en AWS'
                 echo '================================================'
+                unstash 'workspace'
+                unstash 'tfplan'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD apply -auto-approve tfplan
+                    terraform init -backend=false
+                    terraform apply -auto-approve tfplan
                     echo "Infraestructura desplegada exitosamente"
                 '''
             }
@@ -187,13 +222,22 @@ pipeline {
             when {
                 expression { params.ACTION == 'destroy' }
             }
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Destruyendo infraestructura'
                 echo '================================================'
+                unstash 'workspace'
+                unstash 'tfplan'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD apply -auto-approve tfplan
+                    terraform init -backend=false
+                    terraform apply -auto-approve tfplan
                     echo "Infraestructura destruida"
                 '''
             }
@@ -203,13 +247,21 @@ pipeline {
             when {
                 expression { params.ACTION == 'apply' }
             }
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.6'
+                    label 'docker-agent'
+                    reuseNode false
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Outputs de Terraform'
                 echo '================================================'
+                unstash 'workspace'
                 sh '''
-                    TERRAFORM_CMD=$(command -v terraform || echo "./terraform")
-                    $TERRAFORM_CMD output -json > outputs.json || true
+                    terraform init -backend=false
+                    terraform output -json > outputs.json || true
                     cat outputs.json || echo "No hay outputs disponibles"
                 '''
             }
@@ -217,24 +269,22 @@ pipeline {
     }
     
     post {
-        always {
-            echo '================================================'
-            echo 'Limpieza'
-            echo '================================================'
-            sh 'ls -lh tfplan 2>/dev/null || echo "No hay plan file"'
-        }
         success {
-            echo '================================================'
-            echo 'Pipeline ejecutado exitosamente'
-            echo '================================================'
-            echo "Accion: ${params.ACTION}"
-            echo "Entorno: ${params.ENVIRONMENT}"
+            node('docker-agent') {
+                echo '================================================'
+                echo 'Pipeline ejecutado exitosamente'
+                echo '================================================'
+                echo "Accion: ${params.ACTION}"
+                echo "Entorno: ${params.ENVIRONMENT}"
+            }
         }
         failure {
-            echo '================================================'
-            echo 'Pipeline fallo'
-            echo '================================================'
-            echo 'Revisa los logs para identificar el problema'
+            node('docker-agent') {
+                echo '================================================'
+                echo 'Pipeline fallo'
+                echo '================================================'
+                echo 'Revisa los logs para identificar el problema'
+            }
         }
     }
 }
