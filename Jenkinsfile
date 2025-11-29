@@ -4,7 +4,9 @@
 // ============================================
 
 pipeline {
-    agent any  // Usa cualquier agente disponible (temporalmente)
+    agent {
+        label 'docker-agent'  // Usa el agente Docker configurado
+    }
     
     // Variables de entorno
     environment {
