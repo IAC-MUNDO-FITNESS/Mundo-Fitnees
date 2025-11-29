@@ -132,7 +132,13 @@ pipeline {
                     }
 
                     if (!fileExists('terraform.tfstate.backup')) {
-                        error 'No se encontro terraform.tfstate.backup; sube el archivo como artefacto o desactiva RESTORE_STATE_FROM_BACKUP.'
+                        def msg = 'No se encontro terraform.tfstate.backup tras intentar copiar artefactos.'
+                        if (params.ACTION == 'destroy') {
+                            error msg + ' Este estado es obligatorio para destruir recursos existentes.'
+                        } else {
+                            echo msg + ' Continuando sin restaurar estado.'
+                            return
+                        }
                     }
 
                     sh '''
