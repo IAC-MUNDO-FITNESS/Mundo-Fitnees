@@ -1,0 +1,162 @@
+// ============================================
+// JENKINSFILE - GENERADOR DE METRICAS
+// Envía invocaciones y métricas sintéticas a Lambda/CW
+// ============================================
+
+pipeline {
+    agent {
+        label 'docker-agent'
+    }
+
+    parameters {
+        string(
+            name: 'ENVIRONMENT',
+            defaultValue: 'dev',
+            description: 'Entorno objetivo (dev/prod) para nombrar las Lambdas'
+        )
+        string(
+            name: 'AWS_CREDENTIALS_ID',
+            defaultValue: 'aws-elmundo-fitness',
+            description: 'Credencial AWS almacenada en Jenkins'
+        )
+        string(
+            name: 'AWS_REGION',
+            defaultValue: 'us-east-1',
+            description: 'Región donde están las Lambdas y CloudWatch'
+        )
+        string(
+            name: 'ITERATIONS',
+            defaultValue: '10',
+            description: 'Número de ciclos que enviarán métricas (cada ciclo ~ intervalo)'
+        )
+        string(
+            name: 'INTERVAL_SECONDS',
+            defaultValue: '30',
+            description: 'Segundos a esperar entre cada ciclo'
+        )
+    }
+
+    options {
+        ansiColor('xterm')
+        timeout(time: 60, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '================================================'
+                echo 'Descargando código del repositorio'
+                echo '================================================'
+                checkout scm
+            }
+        }
+
+        stage('Stream Synthetic Metrics') {
+            steps {
+                echo '================================================'
+                echo 'Generando métricas aleatorias cada intervalo configurado'
+                echo '================================================'
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                set -e
+
+                                ensure_awscli() {
+                                    if command -v aws >/dev/null 2>&1; then
+                                        return
+                                    fi
+
+                                    if ! command -v pip3 >/dev/null 2>&1; then
+                                        if command -v apt-get >/dev/null 2>&1; then
+                                            apt-get update -qq >/dev/null 2>&1
+                                            apt-get install -y -qq python3-pip >/dev/null 2>&1 || true
+                                        fi
+                                    fi
+
+                                    if command -v pip3 >/dev/null 2>&1; then
+                                        pip3 install --user awscli >/dev/null 2>&1 || pip3 install awscli >/dev/null 2>&1 || true
+                                    fi
+
+                                    export PATH="$HOME/.local/bin:$PATH"
+
+                                    if ! command -v aws >/dev/null 2>&1; then
+                                        echo "No se pudo disponer de awscli" >&2
+                                        exit 1
+                                    fi
+                                }
+
+                                ensure_awscli
+                                export PATH="$HOME/.local/bin:$PATH"
+
+                                ITERATIONS=${ITERATIONS}
+                                INTERVAL=${INTERVAL_SECONDS}
+
+                                echo "
+Iteraciones totales: ${ITERATIONS}
+Intervalo (s): ${INTERVAL}
+Environment: ${ENVIRONMENT}
+Namespace: ElMundoFitness/Demo
+"
+
+                                for run in $(seq 1 "$ITERATIONS"); do
+                                    echo "--- Ciclo ${run}/${ITERATIONS} ---"
+
+                                    for fn in subscription-control access-control notification-service; do
+                                        LAMBDA_NAME="elmundo-fitness-${ENVIRONMENT}-${fn}"
+                                        TIMESTAMP=$(date -u +%FT%TZ)
+                                        REQUEST=$RANDOM
+                                        PAYLOAD="{\"source\":\"jenkins-metrics\",\"timestamp\":\"${TIMESTAMP}\",\"requestId\":\"${REQUEST}\",\"detail\":\"Synthetic traffic\"}"
+                                        echo "Invocando ${LAMBDA_NAME}"
+                                        aws lambda invoke \
+                                            --function-name "$LAMBDA_NAME" \
+                                            --payload "${PAYLOAD}" \
+                                            --cli-binary-format raw-in-base64-out \
+                                            "/tmp/${fn}-${run}.json" >/dev/null 2>&1 || true
+                                    done
+
+                                    LATENCY=$(( ( RANDOM % 400 ) + 50 ))
+                                    ERRORS=$(( RANDOM % 3 ))
+                                    DURATION=$(( ( RANDOM % 200 ) + 100 ))
+
+                                    aws cloudwatch put-metric-data \
+                                        --namespace "ElMundoFitness/Demo" \
+                                        --metric-data "[\
+                                            {\"MetricName\":\"SyntheticLatency\",\"Unit\":\"Milliseconds\",\"Value\":${LATENCY}},\
+                                            {\"MetricName\":\"SyntheticErrors\",\"Unit\":\"Count\",\"Value\":${ERRORS}},\
+                                            {\"MetricName\":\"SyntheticDuration\",\"Unit\":\"Milliseconds\",\"Value\":${DURATION}},\
+                                            {\"MetricName\":\"Cycle\",\"Unit\":\"Count\",\"Value\":${run}}\
+                                        ]" >/dev/null 2>&1 || true
+
+                                    echo "Metricas publicadas: Lat=${LATENCY}ms Err=${ERRORS} Dur=${DURATION}ms"
+                                    if [ "$run" -lt "$ITERATIONS" ]; then
+                                        sleep "$INTERVAL"
+                                    fi
+                                done
+
+                                echo "Finalizó el generador de métricas. Revisa Grafana en ~1 minuto."
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '================================================'
+            echo 'Generación de métricas completada correctamente'
+            echo '================================================'
+        }
+        failure {
+            echo '================================================'
+            echo 'Generación de métricas falló'
+            echo '================================================'
+            echo 'Revisa los logs para corregir el problema'
+        }
+    }
+}
