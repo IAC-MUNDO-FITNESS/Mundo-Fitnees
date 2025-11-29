@@ -56,7 +56,12 @@ pipeline {
                     if [ ! -f terraform ]; then
                         echo "Descargando Terraform 1.6.6..."
                         curl -sL https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip -o terraform.zip
-                        unzip -q terraform.zip
+                        if command -v unzip >/dev/null 2>&1; then
+                            unzip -q terraform.zip
+                        else
+                            echo "unzip no esta disponible, usando jar para extraer"
+                            jar xf terraform.zip
+                        fi
                         chmod +x terraform
                         rm terraform.zip
                     fi
