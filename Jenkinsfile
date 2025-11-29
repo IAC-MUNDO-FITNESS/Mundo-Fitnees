@@ -1,78 +1,55 @@
+// ============================================
+// JENKINSFILE SIMPLE - PARA DEMOSTRACIÃ“N
+// Proyecto: El Mundo Fitness - Docker Agent Demo
+// ============================================
+
 pipeline {
-    agent any
-
-    environment {
-        AWS_REGION = 'us-east-1'
-        TF_IN_AUTOMATION = 'true'
+    agent {
+        label 'docker-agent'
     }
-
-    parameters {
-        choice(
-            name: 'ACTION',
-            choices: ['apply', 'destroy'],
-            description: 'Action to perform'
-        )
-        string(
-            name: 'ENVIRONMENT',
-            defaultValue: 'dev',
-            description: 'Target environment'
-        )
+    
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
+                echo '================================================'
+                echo 'í³¦ CÃ³digo descargado'
+                echo '================================================'
                 checkout scm
+                sh 'ls -la && pwd'
             }
         }
-
-        stage('Terraform Init') {
+        
+        stage('Environment Info') {
             steps {
-                powershell 'terraform init -input=false'
+                echo 'í´ InformaciÃ³n del entorno'
+                sh '''
+                    uname -a
+                    whoami
+                    echo "Node: ${NODE_NAME}"
+                '''
             }
         }
-
-        stage('Terraform Plan') {
+        
+        stage('Terraform Check') {
             steps {
                 script {
-                    if (params.ACTION == 'destroy') {
-                        powershell "terraform plan -destroy -var='environment=${params.ENVIRONMENT}' -out=tfplan -input=false"
-                    } else {
-                        powershell "terraform plan -var='environment=${params.ENVIRONMENT}' -out=tfplan -input=false"
+                    docker.image('hashicorp/terraform:latest').inside {
+                        sh 'terraform version'
                     }
                 }
-                powershell 'terraform show -no-color tfplan > tfplan.txt'
-            }
-        }
-
-        stage('Approval') {
-            steps {
-                input message: "Do you want to proceed with ${params.ACTION}?", ok: 'Yes, proceed'
-            }
-        }
-
-        stage('Terraform Apply') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                powershell 'terraform apply -input=false -auto-approve tfplan'
-            }
-        }
-
-        stage('Terraform Destroy') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                powershell 'terraform apply -input=false -auto-approve tfplan'
             }
         }
     }
-
+    
     post {
         always {
-            powershell 'if (Test-Path tfplan) { Remove-Item tfplan -Force }'
+            echo 'âœ… Pipeline completado'
+            cleanWs()
         }
     }
 }
