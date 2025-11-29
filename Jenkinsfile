@@ -19,6 +19,16 @@ pipeline {
             defaultValue: 'dev',
             description: 'Entorno (dev/prod)'
         )
+        string(
+            name: 'AWS_CREDENTIALS_ID',
+            defaultValue: 'aws-elmundo-fitness',
+            description: 'ID de las credenciales AWS configuradas en Jenkins'
+        )
+        string(
+            name: 'AWS_REGION',
+            defaultValue: 'us-east-1',
+            description: 'Region de AWS que usara Terraform'
+        )
     }
     
     options {
@@ -91,9 +101,18 @@ pipeline {
                 echo '================================================'
                 echo 'Inicializando Terraform'
                 echo '================================================'
-                sh '''
-                    ./terraform init -backend=false
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform init -backend=false
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -102,10 +121,19 @@ pipeline {
                 echo '================================================'
                 echo 'Validando configuracion de Terraform'
                 echo '================================================'
-                sh '''
-                    ./terraform validate
-                    echo "Configuracion valida"
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform validate
+                                echo "Configuracion valida"
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -117,16 +145,25 @@ pipeline {
                 echo '================================================'
                 echo 'Generando plan de Terraform'
                 echo '================================================'
-                sh '''
-                    ./terraform plan \
-                        -var="environment=${ENVIRONMENT}" \
-                        -out=tfplan \
-                        -input=false
-                    
-                    echo ""
-                    echo "=== Plan Summary ==="
-                    ./terraform show -no-color tfplan | head -50
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform plan \
+                                    -var="environment=${ENVIRONMENT}" \
+                                    -out=tfplan \
+                                    -input=false
+                                
+                                echo ""
+                                echo "=== Plan Summary ==="
+                                ./terraform show -no-color tfplan | head -50
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -138,16 +175,25 @@ pipeline {
                 echo '================================================'
                 echo 'Generando plan de destruccion'
                 echo '================================================'
-                sh '''
-                    ./terraform plan -destroy \
-                        -var="environment=${ENVIRONMENT}" \
-                        -out=tfplan \
-                        -input=false
-                    
-                    echo ""
-                    echo "=== Destroy Plan Summary ==="
-                    ./terraform show -no-color tfplan | head -50
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform plan -destroy \
+                                    -var="environment=${ENVIRONMENT}" \
+                                    -out=tfplan \
+                                    -input=false
+                                
+                                echo ""
+                                echo "=== Destroy Plan Summary ==="
+                                ./terraform show -no-color tfplan | head -50
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -179,10 +225,19 @@ pipeline {
                 echo '================================================'
                 echo 'Aplicando cambios en AWS'
                 echo '================================================'
-                sh '''
-                    ./terraform apply -auto-approve tfplan
-                    echo "Infraestructura desplegada exitosamente"
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform apply -auto-approve tfplan
+                                echo "Infraestructura desplegada exitosamente"
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -194,10 +249,19 @@ pipeline {
                 echo '================================================'
                 echo 'Destruyendo infraestructura'
                 echo '================================================'
-                sh '''
-                    ./terraform apply -auto-approve tfplan
-                    echo "Infraestructura destruida"
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform apply -auto-approve tfplan
+                                echo "Infraestructura destruida"
+                            '''
+                        }
+                    }
+                }
             }
         }
         
@@ -209,10 +273,19 @@ pipeline {
                 echo '================================================'
                 echo 'Outputs de Terraform'
                 echo '================================================'
-                sh '''
-                    ./terraform output -json > outputs.json || true
-                    cat outputs.json || echo "No hay outputs disponibles"
-                '''
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                ./terraform output -json > outputs.json || true
+                                cat outputs.json || echo "No hay outputs disponibles"
+                            '''
+                        }
+                    }
+                }
             }
         }
     }
