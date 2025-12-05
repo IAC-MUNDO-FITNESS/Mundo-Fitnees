@@ -112,9 +112,7 @@ pipeline {
         }
         
         stage('Environment Info') {
-            agent {
-                any
-            }
+            agent any
             steps {
                 echo '================================================'
                 echo 'Informacion del entorno'
@@ -131,9 +129,7 @@ pipeline {
         }
 
         stage('Restore State') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.RESTORE_STATE_FROM_BACKUP }
             }
@@ -178,9 +174,7 @@ pipeline {
         }
         
         stage('Terraform Init') {
-            agent {
-                any
-            }
+            agent any
             steps {
                 echo '================================================'
                 echo 'Inicializando Terraform'
@@ -201,9 +195,7 @@ pipeline {
         }
         
         stage('Terraform Validate') {
-            agent {
-                any
-            }
+            agent any
             steps {
                 echo '================================================'
                 echo 'Validando configuracion de Terraform'
@@ -225,9 +217,7 @@ pipeline {
         }
         
         stage('Terraform Plan') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'plan' || params.ACTION == 'apply' }
             }
@@ -258,9 +248,7 @@ pipeline {
         }
         
         stage('Terraform Plan Destroy') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'destroy' }
             }
@@ -291,9 +279,7 @@ pipeline {
         }
         
         stage('Generate Sample Metrics') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'metrics' }
             }
@@ -366,9 +352,7 @@ pipeline {
         }
 
         stage('Approval for Apply') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'apply' && !params.AUTO_APPROVE }
             }
@@ -379,9 +363,7 @@ pipeline {
         }
         
         stage('Approval for Destroy') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'destroy' && !params.AUTO_APPROVE }
             }
@@ -392,9 +374,7 @@ pipeline {
         }
         
         stage('Terraform Apply') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'apply' }
             }
@@ -422,9 +402,7 @@ pipeline {
         }
         
         stage('Terraform Destroy') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'destroy' }
             }
@@ -452,9 +430,7 @@ pipeline {
         }
         
         stage('Show Outputs') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'apply' }
             }
@@ -479,9 +455,7 @@ pipeline {
         }
         
         stage('Deploy to Dev') {
-            agent {
-                any
-            }
+            agent any
             when {
                 expression { params.ACTION == 'apply' && params.ENVIRONMENT == 'dev' }
             }
