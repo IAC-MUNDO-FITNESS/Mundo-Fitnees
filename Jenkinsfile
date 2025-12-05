@@ -4,9 +4,7 @@
 // ============================================
 
 pipeline {
-    agent {
-        label 'docker-agent'
-    }
+    agent none
     
     parameters {
         choice(
@@ -47,6 +45,7 @@ pipeline {
     
     stages {
         stage('Checkout') {
+            agent any
             steps {
                 echo '================================================'
                 echo 'Descargando codigo del repositorio'
@@ -60,7 +59,70 @@ pipeline {
             }
         }
         
+        stage('Unit Tests') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    any
+                    reuseNode true
+                }
+            }
+            steps {
+                echo '================================================'
+                echo 'Ejecutando Tests Unitarios de Lambda Functions'
+                echo '================================================'
+                sh '''
+                    # Instalar dependencias
+                    npm install
+                    
+                    # Ejecutar tests con coverage
+                    npm test
+                    
+                    # Mostrar resumen de coverage
+                    echo ""
+                    echo "=== Test Coverage Summary ==="
+                    cat coverage/coverage-summary.json || echo "No coverage data available"
+                '''
+            }
+            post {
+                always {
+                    // Publicar resultados de tests
+                    junit testResults: 'coverage/junit.xml', allowEmptyResults: true
+                    
+                    // Archivar reportes
+                    archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('Security Scan - Checkov') {
+            agent {
+                docker {
+                    image 'bridgecrew/checkov:latest'
+                    any
+                    reuseNode true
+                }
+            }
+            steps {
+                echo '================================================'
+                echo 'Ejecutando Checkov Security Scan'
+                echo '================================================'
+                sh '''
+                    checkov -d . \
+                        --framework terraform \
+                        --output cli \
+                        --soft-fail || true
+                    
+                    echo ""
+                    echo "Security scan completado"
+                '''
+            }
+        }
+        
         stage('Setup Terraform') {
+            agent {
+                any
+            }
             steps {
                 echo '================================================'
                 echo 'Configurando Terraform'
@@ -92,6 +154,9 @@ pipeline {
         }
         
         stage('Environment Info') {
+            agent {
+                any
+            }
             steps {
                 echo '================================================'
                 echo 'Informacion del entorno'
@@ -108,6 +173,9 @@ pipeline {
         }
 
         stage('Restore State') {
+            agent {
+                any
+            }
             when {
                 expression { params.RESTORE_STATE_FROM_BACKUP }
             }
@@ -152,6 +220,9 @@ pipeline {
         }
         
         stage('Terraform Init') {
+            agent {
+                any
+            }
             steps {
                 echo '================================================'
                 echo 'Inicializando Terraform'
@@ -172,6 +243,9 @@ pipeline {
         }
         
         stage('Terraform Validate') {
+            agent {
+                any
+            }
             steps {
                 echo '================================================'
                 echo 'Validando configuracion de Terraform'
@@ -193,6 +267,9 @@ pipeline {
         }
         
         stage('Terraform Plan') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'plan' || params.ACTION == 'apply' }
             }
@@ -223,6 +300,9 @@ pipeline {
         }
         
         stage('Terraform Plan Destroy') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'destroy' }
             }
@@ -253,6 +333,9 @@ pipeline {
         }
         
         stage('Generate Sample Metrics') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'metrics' }
             }
@@ -325,6 +408,9 @@ pipeline {
         }
 
         stage('Approval for Apply') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'apply' && !params.AUTO_APPROVE }
             }
@@ -335,6 +421,9 @@ pipeline {
         }
         
         stage('Approval for Destroy') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'destroy' && !params.AUTO_APPROVE }
             }
@@ -345,6 +434,9 @@ pipeline {
         }
         
         stage('Terraform Apply') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'apply' }
             }
@@ -372,6 +464,9 @@ pipeline {
         }
         
         stage('Terraform Destroy') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'destroy' }
             }
@@ -399,6 +494,9 @@ pipeline {
         }
         
         stage('Show Outputs') {
+            agent {
+                any
+            }
             when {
                 expression { params.ACTION == 'apply' }
             }
@@ -421,31 +519,111 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy to Dev') {
+            agent {
+                any
+            }
+            when {
+                expression { params.ACTION == 'apply' && params.ENVIRONMENT == 'dev' }
+            }
+            steps {
+                echo '================================================'
+                echo 'Desplegando a entorno DEV'
+                echo '================================================'
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: params.AWS_CREDENTIALS_ID]]) {
+                        withEnv([
+                            "AWS_DEFAULT_REGION=${params.AWS_REGION}",
+                            "AWS_REGION=${params.AWS_REGION}"
+                        ]) {
+                            sh '''
+                                echo "=== Verificando deployment ==="
+                                
+                                # Instalar AWS CLI si es necesario
+                                ensure_awscli() {
+                                    if command -v aws >/dev/null 2>&1; then
+                                        return
+                                    fi
+                                    if ! command -v pip3 >/dev/null 2>&1; then
+                                        if command -v apt-get >/dev/null 2>&1; then
+                                            apt-get update -qq >/dev/null 2>&1
+                                            apt-get install -y -qq python3-pip >/dev/null 2>&1 || true
+                                        fi
+                                    fi
+                                    if command -v pip3 >/dev/null 2>&1; then
+                                        pip3 install --user awscli >/dev/null 2>&1 || true
+                                    fi
+                                    export PATH="$HOME/.local/bin:$PATH"
+                                }
+                                
+                                ensure_awscli
+                                export PATH="$HOME/.local/bin:$PATH"
+                                
+                                # Verificar Lambda functions
+                                echo ""
+                                echo "Verificando Lambda Functions..."
+                                for fn in subscription-control access-control notification-service; do
+                                    NAME="elmundo-fitness-${ENVIRONMENT}-${fn}"
+                                    STATUS=$(aws lambda get-function --function-name "$NAME" --query 'Configuration.State' --output text 2>/dev/null || echo "NOT_FOUND")
+                                    echo "  - $NAME: $STATUS"
+                                done
+                                
+                                # Verificar DynamoDB tables
+                                echo ""
+                                echo "Verificando DynamoDB Tables..."
+                                for table in usuarios historial-asistencia; do
+                                    NAME="elmundo-fitness-${table}-${ENVIRONMENT}"
+                                    STATUS=$(aws dynamodb describe-table --table-name "$NAME" --query 'Table.TableStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+                                    echo "  - $NAME: $STATUS"
+                                done
+                                
+                                # Verificar API Gateway
+                                echo ""
+                                echo "Verificando API Gateway..."
+                                API_ID=$(aws apigateway get-rest-apis --query "items[?name=='elmundo-fitness-api-${ENVIRONMENT}'].id" --output text 2>/dev/null || echo "NOT_FOUND")
+                                if [ "$API_ID" != "NOT_FOUND" ] && [ -n "$API_ID" ]; then
+                                    echo "  - API Gateway ID: $API_ID"
+                                    echo "  - API URL: https://${API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}"
+                                else
+                                    echo "  - API Gateway: NOT_FOUND"
+                                fi
+                                
+                                echo ""
+                                echo "=== Deployment verification completado ==="
+                            '''
+                        }
+                    }
+                }
+            }
+        }
     }
     
     post {
         always {
-            echo '================================================'
-            echo 'Limpieza'
-            echo '================================================'
-            sh '''
-                ls -lh tfplan 2>/dev/null || echo "No hay plan file"
-                ls -lh terraform 2>/dev/null || echo "No hay terraform binary"
-            '''
-            script {
-                def artifacts = []
-                if (fileExists('terraform.tfstate')) {
-                    artifacts << 'terraform.tfstate'
-                }
-                if (fileExists('terraform.tfstate.backup')) {
-                    artifacts << 'terraform.tfstate.backup'
-                }
+            node('docker-agent') {
+                echo '================================================'
+                echo 'Limpieza'
+                echo '================================================'
+                sh '''
+                    ls -lh tfplan 2>/dev/null || echo "No hay plan file"
+                    ls -lh terraform 2>/dev/null || echo "No hay terraform binary"
+                '''
+                script {
+                    def artifacts = []
+                    if (fileExists('terraform.tfstate')) {
+                        artifacts << 'terraform.tfstate'
+                    }
+                    if (fileExists('terraform.tfstate.backup')) {
+                        artifacts << 'terraform.tfstate.backup'
+                    }
 
-                if (!artifacts.isEmpty()) {
-                    echo 'Archivando estado de Terraform para uso futuro'
-                    archiveArtifacts artifacts: artifacts.join(', '), onlyIfSuccessful: false
-                } else {
-                    echo 'No hay archivos de estado para archivar'
+                    if (!artifacts.isEmpty()) {
+                        echo 'Archivando estado de Terraform para uso futuro'
+                        archiveArtifacts artifacts: artifacts.join(', '), onlyIfSuccessful: false
+                    } else {
+                        echo 'No hay archivos de estado para archivar'
+                    }
                 }
             }
         }
