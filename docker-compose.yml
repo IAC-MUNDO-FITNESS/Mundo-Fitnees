@@ -71,7 +71,10 @@ services:
   # JENKINS - CI/CD Pipeline
   # ============================================
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    image: elmundo-fitness-jenkins:latest
     container_name: elmundo-fitness-jenkins
     restart: unless-stopped
     
