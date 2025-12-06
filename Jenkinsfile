@@ -134,7 +134,7 @@ pipeline {
                                 sh '''
                                     # Ejecutar SonarScanner en contenedor Docker
                                     docker run --rm \
-                                        --network elmundo-fitness-network \
+                                        --network elmundo-fitness-monitoring \
                                         -e SONAR_HOST_URL="http://elmundo-fitness-sonarqube:9000" \
                                         -e SONAR_LOGIN="${SONAR_TOKEN}" \
                                         -v "$(pwd)":/usr/src \
@@ -144,7 +144,9 @@ pipeline {
                                         -Dsonar.projectVersion=1.0 \
                                         -Dsonar.sources=. \
                                         -Dsonar.exclusions=**/node_modules/**,**/.terraform/**,**/coverage/**,**/.git/** \
-                                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info || echo "⚠️ SonarQube scan completado con warnings"
+                                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                    
+                                    echo "✅ SonarQube scan completado exitosamente"
                                 '''
                             }
                         } catch (Exception e) {
