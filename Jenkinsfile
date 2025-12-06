@@ -194,7 +194,7 @@ pipeline {
                         rm terraform.zip
                     fi
                     
-                    ./terraform version
+                    terraform version
                 '''
             }
         }
@@ -211,7 +211,7 @@ pipeline {
                     echo "Action: ${ACTION}"
                     echo "Environment: ${ENVIRONMENT}"
                     echo "Restore state from backup: ${RESTORE_STATE_FROM_BACKUP}"
-                    ./terraform version
+                    terraform version
                 '''
             }
         }
@@ -274,7 +274,7 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform init -backend=false
+                                terraform init -backend=false
                             '''
                         }
                     }
@@ -295,7 +295,7 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform validate
+                                terraform validate
                                 echo "Configuracion valida"
                             '''
                         }
@@ -320,14 +320,14 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform plan \
+                                terraform plan \
                                     -var="environment=${ENVIRONMENT}" \
                                     -out=tfplan \
                                     -input=false
                                 
                                 echo ""
                                 echo "=== Plan Summary ==="
-                                ./terraform show -no-color tfplan | head -50
+                                terraform show -no-color tfplan | head -50
                             '''
                         }
                     }
@@ -351,14 +351,14 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform plan -destroy \
+                                terraform plan -destroy \
                                     -var="environment=${ENVIRONMENT}" \
                                     -out=tfplan \
                                     -input=false
                                 
                                 echo ""
                                 echo "=== Destroy Plan Summary ==="
-                                ./terraform show -no-color tfplan | head -50
+                                terraform show -no-color tfplan | head -50
                             '''
                         }
                     }
@@ -480,7 +480,7 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform apply -auto-approve tfplan
+                                terraform apply -auto-approve tfplan
                                 echo "Infraestructura desplegada exitosamente"
                             '''
                         }
@@ -508,7 +508,7 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform apply -auto-approve tfplan
+                                terraform apply -auto-approve tfplan
                                 echo "Infraestructura destruida"
                             '''
                         }
@@ -533,7 +533,7 @@ pipeline {
                             "AWS_REGION=${params.AWS_REGION}"
                         ]) {
                             sh '''
-                                ./terraform output -json > outputs.json || true
+                                terraform output -json > outputs.json || true
                                 cat outputs.json || echo "No hay outputs disponibles"
                             '''
                         }
