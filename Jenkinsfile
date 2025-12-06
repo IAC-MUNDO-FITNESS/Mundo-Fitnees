@@ -60,22 +60,46 @@ pipeline {
         }
         
         stage('Unit Tests') {
-            agent any
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    reuseNode true
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Ejecutando Tests Unitarios de Lambda Functions'
                 echo '================================================'
-                echo 'Tests omitidos - requiere Node.js instalado'
+                sh '''
+                    node --version
+                    npm --version
+                    
+                    # Instalar dependencias
+                    echo "Instalando dependencias de Jest..."
+                    npm install --production=false
+                    
+                    # Ejecutar tests
+                    echo "Ejecutando tests unitarios..."
+                    npm test
+                '''
             }
         }
         
         stage('Security Scan - Checkov') {
-            agent any
+            agent {
+                docker {
+                    image 'bridgecrew/checkov:latest'
+                    reuseNode true
+                }
+            }
             steps {
                 echo '================================================'
                 echo 'Ejecutando Checkov Security Scan'
                 echo '================================================'
-                echo 'Checkov scan omitido - requiere Docker'
+                sh '''
+                    echo "Escaneando archivos Terraform..."
+                    checkov -d . --framework terraform --quiet --compact || true
+                '''
             }
         }
         
@@ -533,7 +557,7 @@ pipeline {
     
     post {
         always {
-            node('docker-agent') {
+            script {
                 echo '================================================'
                 echo 'Limpieza'
                 echo '================================================'
