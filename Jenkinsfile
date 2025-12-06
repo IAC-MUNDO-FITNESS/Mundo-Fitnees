@@ -65,14 +65,32 @@ pipeline {
                 echo '================================================'
                 echo 'Ejecutando Tests Unitarios de Lambda Functions'
                 echo '================================================'
-                sh '''
-                    # Ejecutar tests en contenedor Docker
-                    docker run --rm \
-                        -v "$(pwd)":/app \
-                        -w /app \
-                        node:18-alpine \
-                        sh -c "npm install --production=false && npm test" || echo "Tests completados con warnings"
-                '''
+                script {
+                    def testResult = sh(
+                        script: '''
+                            # Verificar que package.json existe
+                            if [ ! -f package.json ]; then
+                                echo "ERROR: package.json no encontrado en $(pwd)"
+                                exit 1
+                            fi
+                            
+                            # Ejecutar tests en contenedor Docker
+                            docker run --rm \
+                                -v "$(pwd)":/app \
+                                -w /app \
+                                node:18-alpine \
+                                sh -c "npm install --production=false && npm test"
+                        ''',
+                        returnStatus: true
+                    )
+                    
+                    if (testResult != 0) {
+                        echo "⚠️ Tests fallaron con código: ${testResult}"
+                        echo "Tests completados con warnings - continuando pipeline"
+                    } else {
+                        echo "✅ Tests ejecutados exitosamente"
+                    }
+                }
             }
         }
         
