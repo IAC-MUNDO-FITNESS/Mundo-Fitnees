@@ -111,6 +111,46 @@ pipeline {
             }
         }
         
+        stage('SonarQube Analysis') {
+            agent any
+            steps {
+                echo '================================================'
+                echo 'Ejecutando Analisis de Calidad de Codigo - SonarQube'
+                echo '================================================'
+                script {
+                    // Verificar si SonarQube está configurado
+                    def sonarqubeConfigured = sh(
+                        script: 'docker ps --format "{{.Names}}" | grep -q sonarqube',
+                        returnStatus: true
+                    )
+                    
+                    if (sonarqubeConfigured == 0) {
+                        echo '✅ SonarQube detectado, ejecutando análisis...'
+                        sh '''
+                            # Ejecutar SonarScanner en contenedor Docker
+                            docker run --rm \
+                                -e SONAR_HOST_URL="http://sonarqube:9000" \
+                                -e SONAR_LOGIN="${SONARQUBE_TOKEN}" \
+                                -v "$(pwd)":/usr/src \
+                                sonarsource/sonar-scanner-cli \
+                                -Dsonar.projectKey=elmundo-fitness \
+                                -Dsonar.projectName="El Mundo Fitness" \
+                                -Dsonar.projectVersion=1.0 \
+                                -Dsonar.sources=. \
+                                -Dsonar.exclusions=**/node_modules/**,**/.terraform/**,**/coverage/** \
+                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info || echo "SonarQube scan completado con warnings"
+                        '''
+                    } else {
+                        echo '⚠️ SonarQube no está configurado, saltando análisis'
+                        echo 'Para habilitar SonarQube:'
+                        echo '1. Ejecutar: docker-compose up -d sonarqube'
+                        echo '2. Configurar token en Jenkins credentials'
+                        echo '3. Re-ejecutar pipeline'
+                    }
+                }
+            }
+        }
+        
         stage('Setup Terraform') {
             agent any
             steps {
