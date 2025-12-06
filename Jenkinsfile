@@ -118,34 +118,48 @@ pipeline {
                 echo 'Ejecutando Analisis de Calidad de Codigo - SonarQube'
                 echo '================================================'
                 script {
-                    // Verificar si SonarQube está configurado
-                    def sonarqubeConfigured = sh(
+                    // Verificar si SonarQube está corriendo
+                    def sonarqubeRunning = sh(
                         script: 'docker ps --format "{{.Names}}" | grep -q sonarqube',
                         returnStatus: true
                     )
                     
-                    if (sonarqubeConfigured == 0) {
-                        echo '✅ SonarQube detectado, ejecutando análisis...'
-                        sh '''
-                            # Ejecutar SonarScanner en contenedor Docker
-                            docker run --rm \
-                                -e SONAR_HOST_URL="http://sonarqube:9000" \
-                                -e SONAR_LOGIN="${SONARQUBE_TOKEN}" \
-                                -v "$(pwd)":/usr/src \
-                                sonarsource/sonar-scanner-cli \
-                                -Dsonar.projectKey=elmundo-fitness \
-                                -Dsonar.projectName="El Mundo Fitness" \
-                                -Dsonar.projectVersion=1.0 \
-                                -Dsonar.sources=. \
-                                -Dsonar.exclusions=**/node_modules/**,**/.terraform/**,**/coverage/** \
-                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info || echo "SonarQube scan completado con warnings"
-                        '''
+                    if (sonarqubeRunning == 0) {
+                        echo '✅ SonarQube container detectado'
+                        
+                        // Verificar si existe la credencial
+                        try {
+                            withCredentials([string(credentialsId: 'SONARQUBE_TOKEN', variable: 'SONAR_TOKEN')]) {
+                                echo '✅ Token de SonarQube configurado, ejecutando análisis...'
+                                sh '''
+                                    # Ejecutar SonarScanner en contenedor Docker
+                                    docker run --rm \
+                                        --network elmundo-fitness-network \
+                                        -e SONAR_HOST_URL="http://elmundo-fitness-sonarqube:9000" \
+                                        -e SONAR_LOGIN="${SONAR_TOKEN}" \
+                                        -v "$(pwd)":/usr/src \
+                                        sonarsource/sonar-scanner-cli \
+                                        -Dsonar.projectKey=elmundo-fitness \
+                                        -Dsonar.projectName="El Mundo Fitness - IAC" \
+                                        -Dsonar.projectVersion=1.0 \
+                                        -Dsonar.sources=. \
+                                        -Dsonar.exclusions=**/node_modules/**,**/.terraform/**,**/coverage/**,**/.git/** \
+                                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info || echo "⚠️ SonarQube scan completado con warnings"
+                                '''
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ Credencial 'SONARQUBE_TOKEN' no configurada en Jenkins"
+                            echo "Para configurar:"
+                            echo "1. Ve a: Jenkins → Manage Jenkins → Credentials"
+                            echo "2. Agrega 'Secret text' con ID: SONARQUBE_TOKEN"
+                            echo "3. Usa el token generado en SonarQube"
+                            echo "Saltando análisis de SonarQube por ahora..."
+                        }
                     } else {
-                        echo '⚠️ SonarQube no está configurado, saltando análisis'
-                        echo 'Para habilitar SonarQube:'
-                        echo '1. Ejecutar: docker-compose up -d sonarqube'
-                        echo '2. Configurar token en Jenkins credentials'
-                        echo '3. Re-ejecutar pipeline'
+                        echo '⚠️ SonarQube no está corriendo'
+                        echo 'Para iniciar SonarQube:'
+                        echo '  docker-compose up -d sonarqube sonarqube-db'
+                        echo 'Saltando análisis...'
                     }
                 }
             }
